@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1A3A5C">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>ウェイト記録 | KEIO BASKETBALL</title>
+<style>
+:root{
+  --crimson:#A50000; --crimson-dark:#7E0000;
+  --navy:#1A3A5C; --navy-deep:#122A44;
+  --bg:#F4F6F9; --card:#FFFFFF; --ink:#1B2430; --sub:#6B7686;
+  --line:#E2E7EE; --ok:#2E7D46; --warn:#B7791F;
+  --chip-bg:#FBF4F4;
+  --radius:14px;
+  font-size:16px;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{
+  font-family:"Yu Gothic","Hiragino Kaku Gothic ProN",system-ui,sans-serif;
+  background:var(--bg); color:var(--ink);
+  padding-bottom:calc(96px + env(safe-area-inset-bottom));
+}
+button{font-family:inherit;border:none;background:none;cursor:pointer}
+input,select,textarea{font-family:inherit;font-size:1rem}
+
+/* ===== トップバー ===== */
+header{
+  position:sticky;top:0;z-index:20;
+  background:var(--navy);color:#fff;
+  padding:calc(10px + env(safe-area-inset-top)) 16px 10px;
+  display:flex;align-items:center;gap:10px;
+}
+header .brand{font-weight:800;font-size:.8rem;letter-spacing:.14em;line-height:1.2}
+header .brand small{display:block;font-weight:400;font-size:.62rem;color:#B9C6D6;letter-spacing:.2em}
+header .spacer{flex:1}
+#netBadge{font-size:.66rem;padding:3px 9px;border-radius:99px;background:#2E7D46;color:#fff;font-weight:700}
+#netBadge.off{background:var(--warn)}
+#queueBadge{font-size:.66rem;padding:3px 9px;border-radius:99px;background:var(--crimson);color:#fff;font-weight:700;display:none}
+#gearBtn{color:#B9C6D6;font-size:1.2rem;padding:4px}
+
+main{max-width:560px;margin:0 auto;padding:14px 14px 0}
+
+/* ===== カード ===== */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:14px}
+.card h2{font-size:.78rem;color:var(--navy);letter-spacing:.08em;margin-bottom:10px;font-weight:800}
+label.fld{display:block;font-size:.72rem;color:var(--sub);margin:10px 0 4px;font-weight:700}
+select,input[type=text],input[type=date],input[type=url],input[type=password],textarea{
+  width:100%;padding:12px;border:1.5px solid var(--line);border-radius:10px;background:#fff;
+}
+select:focus,input:focus,textarea:focus{outline:2px solid var(--navy);outline-offset:1px}
+
+/* ===== Day選択 ===== */
+.dayGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:6px}
+.dayBtn{
+  padding:16px 0;border-radius:12px;border:1.5px solid var(--line);background:#fff;
+  font-weight:800;color:var(--navy);font-size:1rem;
+}
+.dayBtn.active{background:var(--navy);color:#fff;border-color:var(--navy)}
+
+/* ===== 種目ブロック ===== */
+.exBlock{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:14px;overflow:hidden}
+.exHead{
+  background:var(--navy);color:#fff;padding:11px 14px;
+  display:flex;align-items:baseline;gap:8px;
+}
+.exHead .name{font-weight:800;font-size:.98rem}
+.exHead .cat{font-size:.62rem;color:#B9C6D6;letter-spacing:.1em}
+.setRow{padding:12px 14px;border-top:1px solid var(--line)}
+.setRow:first-of-type{border-top:none}
+.setTop{display:flex;align-items:center;gap:10px;margin-bottom:9px}
+.setNo{font-weight:800;color:var(--navy);font-size:.82rem;min-width:44px}
+/* シグネチャ: 目標チップ(タップで実測に転記) */
+.tChip{
+  display:inline-flex;align-items:center;gap:6px;
+  border:1.5px solid var(--crimson);background:var(--chip-bg);color:var(--crimson-dark);
+  border-radius:99px;padding:5px 12px;font-size:.8rem;font-weight:800;
+}
+.tChip .arrow{font-size:.7rem;opacity:.7}
+.tChip.noW{border-color:var(--line);color:var(--sub);background:#F7F8FA}
+.setNote{font-size:.68rem;color:var(--warn);margin-left:auto;font-weight:700}
+.inGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.numWrap{display:flex;align-items:stretch;border:1.5px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+.numWrap.filled{border-color:var(--navy)}
+.stp{width:44px;background:#EEF2F7;color:var(--navy);font-size:1.05rem;font-weight:800;flex:none}
+.numWrap input{
+  border:none;text-align:center;width:100%;min-width:0;padding:12px 2px;
+  font-weight:800;font-size:1.12rem;font-variant-numeric:tabular-nums;
+}
+.numWrap input:focus{outline:none;background:#F2F6FB}
+.unit{align-self:center;padding:0 8px 0 0;color:var(--sub);font-size:.7rem;flex:none}
+
+/* RPE */
+.rpeRow{display:flex;gap:5px;margin-top:8px}
+.rpeRow .lbl{font-size:.66rem;color:var(--sub);font-weight:700;align-self:center;min-width:30px}
+.rpe{flex:1;padding:9px 0;border:1.5px solid var(--line);border-radius:8px;background:#fff;font-weight:700;font-size:.82rem;color:var(--sub)}
+.rpe.sel{background:var(--crimson);border-color:var(--crimson);color:#fff}
+
+/* 保存済み表示 */
+.setRow.done{background:#F2F8F4}
+.setRow.done .setNo::after{content:" ✓";color:var(--ok)}
+
+/* ===== 下部バー ===== */
+#saveBar{
+  position:fixed;left:0;right:0;bottom:0;z-index:30;
+  background:linear-gradient(to top, rgba(244,246,249,1) 60%, rgba(244,246,249,0));
+  padding:10px 14px calc(12px + env(safe-area-inset-bottom));
+  display:none;
+}
+#saveBar .inner{max-width:560px;margin:0 auto;display:flex;gap:10px}
+#saveBtn{
+  flex:1;background:var(--crimson);color:#fff;font-weight:800;font-size:1.05rem;
+  padding:16px;border-radius:14px;letter-spacing:.06em;
+  box-shadow:0 4px 14px rgba(165,0,0,.28);
+}
+#saveBtn:active{background:var(--crimson-dark)}
+#saveBtn:disabled{background:#C9CFD8;box-shadow:none}
+#backBtn{background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:0 18px;font-weight:700;color:var(--navy)}
+
+/* トースト */
+#toast{
+  position:fixed;left:50%;bottom:calc(100px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);
+  background:var(--navy-deep);color:#fff;padding:11px 20px;border-radius:99px;font-size:.85rem;font-weight:700;
+  opacity:0;transition:.25s;pointer-events:none;z-index:40;white-space:nowrap;
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast.err{background:var(--crimson)}
+
+/* 設定/代理入力 */
+.roleRow{display:flex;gap:8px;margin-top:6px}
+.roleBtn{flex:1;padding:11px;border:1.5px solid var(--line);border-radius:10px;background:#fff;font-weight:700;color:var(--sub);font-size:.85rem}
+.roleBtn.sel{border-color:var(--navy);background:var(--navy);color:#fff}
+.primaryBtn{width:100%;margin-top:14px;background:var(--navy);color:#fff;font-weight:800;padding:14px;border-radius:12px;font-size:.95rem}
+.ghostBtn{width:100%;margin-top:8px;color:var(--sub);font-size:.8rem;padding:8px;font-weight:700}
+.hint{font-size:.7rem;color:var(--sub);line-height:1.6;margin-top:8px}
+.pendItem{font-size:.75rem;color:var(--sub);padding:7px 0;border-top:1px dashed var(--line)}
+.screen{display:none}
+.screen.active{display:block}
+.emptyMsg{text-align:center;color:var(--sub);font-size:.85rem;padding:30px 10px;line-height:1.8}
+
+@media (prefers-reduced-motion: reduce){ *{transition:none !important} }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">KEIO BASKETBALL<small>WEIGHT LOG</small></div>
+  <div class="spacer"></div>
+  <span id="queueBadge">送信待ち 0</span>
+  <span id="netBadge">オンライン</span>
+  <button id="gearBtn" aria-label="設定">⚙︎</button>
+</header>
+
+<main>
+
+<!-- ===== 設定 ===== -->
+<section id="scr-setup" class="screen">
+  <div class="card">
+    <h2>接続設定（初回のみ）</h2>
+    <label class="fld" for="apiUrl">GAS ウェブアプリURL</label>
+    <input type="url" id="apiUrl" placeholder="https://script.google.com/macros/s/…/exec" inputmode="url">
+    <label class="fld" for="apiToken">合言葉トークン（任意・未設定なら空欄）</label>
+    <input type="password" id="apiToken" placeholder="スタッフから共有された場合のみ入力">
+    <button class="primaryBtn" id="saveSetup">接続して選手リストを取得</button>
+    <p class="hint">URLはスタッフがGASをデプロイした際に発行されたものを入力してください。読み込んだ選手・種目リストは端末に保存され、オフラインでも入力できます。</p>
+  </div>
+</section>
+
+<!-- ===== ホーム ===== -->
+<section id="scr-home" class="screen">
+  <div class="card">
+    <h2>今日の記録</h2>
+    <label class="fld" for="selPlayer">選手</label>
+    <select id="selPlayer"></select>
+    <label class="fld" for="inDate">実施日</label>
+    <input type="date" id="inDate">
+    <label class="fld">入力者</label>
+    <div class="roleRow">
+      <button class="roleBtn sel" id="roleSelf" type="button">選手本人</button>
+      <button class="roleBtn" id="roleProxy" type="button">トレーナー代理</button>
+    </div>
+    <div id="proxyWrap" style="display:none">
+      <label class="fld" for="inProxyName">代理入力者名</label>
+      <input type="text" id="inProxyName" placeholder="例: トレーナー山田">
+    </div>
+    <label class="fld">メニュー（Day）</label>
+    <div class="dayGrid" id="dayGrid"></div>
+  </div>
+  <div class="card" id="pendCard" style="display:none">
+    <h2>送信待ちデータ</h2>
+    <div id="pendList"></div>
+    <button class="primaryBtn" id="flushBtn">今すぐ送信する</button>
+    <p class="hint">電波が戻ると自動でも送信されます。送信されるまで端末に安全に保存されています。</p>
+  </div>
+</section>
+
+<!-- ===== 入力 ===== -->
+<section id="scr-entry" class="screen">
+  <div id="entryList"></div>
+  <div class="card">
+    <label class="fld" for="inNote">メモ（任意）</label>
+    <textarea id="inNote" rows="2" placeholder="フォームの感覚、痛みの有無など"></textarea>
+  </div>
+</section>
+
+</main>
+
+<div id="saveBar"><div class="inner">
+  <button id="backBtn">戻る</button>
+  <button id="saveBtn">保存する</button>
+</div></div>
+
+<div id="toast"></div>
+
+<script>
+/* =============================================================
+   状態と保存キー
+============================================================= */
+const LS = {
+  API:'wl_api_url', TOKEN:'wl_token', CONFIG:'wl_config',
+  QUEUE:'wl_queue', PLAYER:'wl_last_player', TARGETS:'wl_targets_' // +player|day
+};
+let config = null;          // {players, exercises, day_types}
+let currentTargets = null;  // getTargetsの結果
+let currentDay = null;
+
+const $ = (s)=>document.querySelector(s);
+const api = ()=>localStorage.getItem(LS.API)||'';
+const token = ()=>localStorage.getItem(LS.TOKEN)||'';
+
+/* =============================================================
+   画面遷移
+============================================================= */
+function show(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  $('#'+id).classList.add('active');
+  $('#saveBar').style.display = (id==='scr-entry') ? 'block' : 'none';
+  window.scrollTo(0,0);
+}
+
+/* =============================================================
+   通信 (GASはtext/plainで送るとプリフライト回避できる)
+============================================================= */
+async function gasGet(params){
+  const u = new URL(api());
+  Object.entries(params).forEach(([k,v])=>u.searchParams.set(k,v));
+  if(token()) u.searchParams.set('token', token());
+  const res = await fetch(u.toString());
+  const j = await res.json();
+  if(!j.ok) throw new Error(j.error||'API error');
+  return j.data;
+}
+async function gasPost(body){
+  if(token()) body.token = token();
+  const res = await fetch(api(), {
+    method:'POST',
+    headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body: JSON.stringify(body),
+  });
+  const j = await res.json();
+  if(!j.ok) throw new Error(j.error||'API error');
+  return j.data;
+}
+
+/* =============================================================
+   初期化
+============================================================= */
+function boot(){
+  const saved = localStorage.getItem(LS.CONFIG);
+  if(!api() || !saved){ show('scr-setup'); return; }
+  config = JSON.parse(saved);
+  renderHome();
+  show('scr-home');
+  flushQueue();  // 起動時に送信待ちを再送
+}
+$('#saveSetup').addEventListener('click', async ()=>{
+  const url = $('#apiUrl').value.trim();
+  if(!url){ toast('URLを入力してください', true); return; }
+  localStorage.setItem(LS.API, url);
+  localStorage.setItem(LS.TOKEN, $('#apiToken').value.trim());
+  try{
+    toast('接続中…');
+    config = await gasGet({action:'getConfig'});
+    localStorage.setItem(LS.CONFIG, JSON.stringify(config));
+    renderHome(); show('scr-home'); toast('選手リストを取得しました');
+  }catch(e){ toast('接続できません: '+e.message, true); }
+});
+$('#gearBtn').addEventListener('click', ()=>{
+  $('#apiUrl').value = api(); $('#apiToken').value = token();
+  show('scr-setup');
+});
+
+/* =============================================================
+   ホーム描画
+============================================================= */
+function renderHome(){
+  // 選手プルダウン(氏名登録済みのみ)
+  const sel = $('#selPlayer');
+  sel.innerHTML = '<option value="">選択してください</option>' +
+    config.players.filter(p=>p.name)
+      .map(p=>`<option value="${p.player_id}">${p.name}</option>`).join('');
+  const last = localStorage.getItem(LS.PLAYER);
+  if(last) sel.value = last;
+  sel.onchange = ()=>localStorage.setItem(LS.PLAYER, sel.value);
+
+  // 日付=今日
+  $('#inDate').value = new Date().toISOString().slice(0,10);
+
+  // Dayボタン
+  const days = (config.day_types && config.day_types.length) ? config.day_types : ['Day1','Day2','Day3','Day4'];
+  $('#dayGrid').innerHTML = days.map(d=>`<button class="dayBtn" data-day="${d}">${d}</button>`).join('');
+  document.querySelectorAll('.dayBtn').forEach(b=>{
+    b.addEventListener('click', ()=>openEntry(b.dataset.day));
+  });
+  renderQueue();
+}
+
+/* 入力者トグル */
+$('#roleSelf').addEventListener('click', ()=>setRole(true));
+$('#roleProxy').addEventListener('click', ()=>setRole(false));
+function setRole(self){
+  $('#roleSelf').classList.toggle('sel', self);
+  $('#roleProxy').classList.toggle('sel', !self);
+  $('#proxyWrap').style.display = self ? 'none' : 'block';
+}
+const isSelf = ()=>$('#roleSelf').classList.contains('sel');
+
+/* =============================================================
+   入力画面
+============================================================= */
+async function openEntry(day){
+  const pid = $('#selPlayer').value;
+  if(!pid){ toast('先に選手を選んでください', true); return; }
+  currentDay = day;
+  document.querySelectorAll('.dayBtn').forEach(b=>b.classList.toggle('active', b.dataset.day===day));
+
+  const cacheKey = LS.TARGETS + pid + '|' + day;
+  try{
+    toast('メニューを取得中…');
+    currentTargets = await gasGet({action:'getTargets', player_id:pid, day_type:day});
+    localStorage.setItem(cacheKey, JSON.stringify(currentTargets));
+  }catch(e){
+    const cached = localStorage.getItem(cacheKey);
+    if(cached){ currentTargets = JSON.parse(cached); toast('オフライン: 前回のメニューを表示'); }
+    else{ toast('メニューを取得できません: '+e.message, true); return; }
+  }
+  renderEntry();
+  show('scr-entry');
+}
+
+function renderEntry(){
+  const wrap = $('#entryList');
+  if(!currentTargets.sets || !currentTargets.sets.length){
+    wrap.innerHTML = '<div class="card"><p class="emptyMsg">このDayに登録されたメニューがありません。<br>スタッフにプログラム明細の設定を確認してください。</p></div>';
+    return;
+  }
+  // 種目ごとにグループ化
+  const groups = {};
+  currentTargets.sets.forEach(s=>{
+    (groups[s.exercise_id] = groups[s.exercise_id] || {name:s.exercise_name, cat:s.category, sets:[]}).sets.push(s);
+  });
+  wrap.innerHTML = Object.entries(groups).map(([exId,g])=>`
+    <div class="exBlock">
+      <div class="exHead"><span class="name">${g.name}</span><span class="cat">${g.cat||''}</span></div>
+      ${g.sets.map(s=>setRowHtml(exId, s)).join('')}
+    </div>`).join('');
+
+  // 目標チップ→実測へ転記
+  wrap.querySelectorAll('.tChip[data-w]').forEach(ch=>{
+    ch.addEventListener('click', ()=>{
+      const inp = document.getElementById(ch.dataset.target);
+      inp.value = ch.dataset.w; inp.dispatchEvent(new Event('input'));
+    });
+  });
+  // ステッパー
+  wrap.querySelectorAll('.stp').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const inp = document.getElementById(b.dataset.for);
+      const cur = parseFloat(inp.value)||0;
+      inp.value = Math.max(0, cur + parseFloat(b.dataset.d));
+      inp.dispatchEvent(new Event('input'));
+    });
+  });
+  // 入力枠ハイライト
+  wrap.querySelectorAll('input[type=number]').forEach(i=>{
+    i.addEventListener('input', ()=>i.closest('.numWrap').classList.toggle('filled', i.value!==''));
+  });
+  // RPE
+  wrap.querySelectorAll('.rpe').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      b.parentElement.querySelectorAll('.rpe').forEach(x=>x.classList.remove('sel'));
+      b.classList.add('sel');
+    });
+  });
+}
+
+function setRowHtml(exId, s){
+  const uid = `s_${exId}_${s.set_number}`;
+  const tgt = s.target_weight_kg;
+  const chip = tgt != null
+    ? `<button type="button" class="tChip" data-w="${tgt}" data-target="${uid}_w">目標 ${s.target_rm_type||''} ${tgt}kg × ${s.target_reps||'-'} <span class="arrow">▶︎転記</span></button>`
+    : `<span class="tChip noW">目標 ${s.target_reps||'-'}回${s.target_rm_type?` (${s.target_rm_type})`:''}</span>`;
+  return `
+  <div class="setRow" data-ex="${exId}" data-set="${s.set_number}">
+    <div class="setTop">
+      <span class="setNo">SET ${s.set_number}</span>
+      ${chip}
+      ${s.note?`<span class="setNote">${s.note}</span>`:''}
+    </div>
+    <div class="inGrid">
+      <div class="numWrap">
+        <button type="button" class="stp" data-for="${uid}_w" data-d="-2.5">−</button>
+        <input type="number" id="${uid}_w" inputmode="decimal" step="0.5" placeholder="${tgt!=null?'重量':'自重/手動'}">
+        <span class="unit">kg</span>
+        <button type="button" class="stp" data-for="${uid}_w" data-d="2.5">＋</button>
+      </div>
+      <div class="numWrap">
+        <button type="button" class="stp" data-for="${uid}_r" data-d="-1">−</button>
+        <input type="number" id="${uid}_r" inputmode="numeric" placeholder="回数">
+        <span class="unit">回</span>
+        <button type="button" class="stp" data-for="${uid}_r" data-d="1">＋</button>
+      </div>
+    </div>
+    <div class="rpeRow"><span class="lbl">RPE</span>
+      ${[...Array(10)].map((_,i)=>`<button type="button" class="rpe" data-v="${i+1}">${i+1}</button>`).join('')}
+    </div>
+  </div>`;
+}
+
+$('#backBtn').addEventListener('click', ()=>show('scr-home'));
+
+/* =============================================================
+   保存 → キュー → 送信
+============================================================= */
+$('#saveBtn').addEventListener('click', ()=>{
+  const pid = $('#selPlayer').value;
+  const date = $('#inDate').value;
+  const note = $('#inNote').value.trim();
+  const proxy = !isSelf();
+  const by = proxy ? ($('#inProxyName').value.trim()||'トレーナー') : '本人';
+
+  const records = [];
+  document.querySelectorAll('.setRow').forEach(row=>{
+    const exId = row.dataset.ex, setN = Number(row.dataset.set);
+    const uid = `s_${exId}_${setN}`;
+    const w = document.getElementById(uid+'_w').value;
+    const r = document.getElementById(uid+'_r').value;
+    const rpeBtn = row.querySelector('.rpe.sel');
+    if(w==='' && r==='') return;  // 未入力セットはスキップ
+    records.push({
+      training_date: date, player_id: pid, day_type: currentDay,
+      exercise_id: exId, set_number: setN,
+      actual_weight_kg: w===''?null:Number(w),
+      actual_reps: r===''?null:Number(r),
+      rpe: rpeBtn?Number(rpeBtn.dataset.v):null,
+      note: note, input_by: by,
+      input_role: proxy?'トレーナー代理':'選手本人',
+    });
+    row.classList.add('done');
+  });
+
+  if(!records.length){ toast('入力されたセットがありません', true); return; }
+  enqueue(records);
+  toast(`${records.length}セットを保存しました`);
+  show('scr-home');
+  $('#inNote').value = '';
+  flushQueue();
+});
+
+function enqueue(records){
+  const q = JSON.parse(localStorage.getItem(LS.QUEUE)||'[]');
+  q.push({at:Date.now(), records});
+  localStorage.setItem(LS.QUEUE, JSON.stringify(q));
+  renderQueue();
+}
+
+let flushing = false;
+async function flushQueue(){
+  if(flushing || !navigator.onLine || !api()) return;
+  let q = JSON.parse(localStorage.getItem(LS.QUEUE)||'[]');
+  if(!q.length) return;
+  flushing = true;
+  try{
+    while(q.length){
+      await gasPost({action:'appendLog', records:q[0].records});
+      q.shift();
+      localStorage.setItem(LS.QUEUE, JSON.stringify(q));
+      renderQueue();
+    }
+    toast('すべて送信しました');
+  }catch(e){
+    toast('送信は後で再試行します', true);
+  }finally{
+    flushing = false;
+  }
+}
+$('#flushBtn') && $('#flushBtn').addEventListener('click', flushQueue);
+
+function renderQueue(){
+  const q = JSON.parse(localStorage.getItem(LS.QUEUE)||'[]');
+  const n = q.reduce((a,b)=>a+b.records.length,0);
+  $('#queueBadge').style.display = n?'inline-block':'none';
+  $('#queueBadge').textContent = `送信待ち ${n}`;
+  $('#pendCard').style.display = q.length?'block':'none';
+  $('#pendList').innerHTML = q.map(item=>{
+    const d = new Date(item.at);
+    const r0 = item.records[0];
+    return `<div class="pendItem">${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')} — ${r0.player_id} ${r0.day_type} / ${item.records.length}セット</div>`;
+  }).join('');
+}
+
+/* =============================================================
+   オンライン状態
+============================================================= */
+function updateNet(){
+  const on = navigator.onLine;
+  $('#netBadge').textContent = on?'オンライン':'オフライン';
+  $('#netBadge').classList.toggle('off', !on);
+  if(on) flushQueue();
+}
+window.addEventListener('online', updateNet);
+window.addEventListener('offline', updateNet);
+setInterval(flushQueue, 60*1000); // 保険: 1分ごとに再送試行
+
+/* トースト */
+let toastTimer;
+function toast(msg, err){
+  const t = $('#toast');
+  t.textContent = msg; t.classList.toggle('err', !!err); t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), 2600);
+}
+
+updateNet();
+boot();
+</script>
+</body>
+</html>

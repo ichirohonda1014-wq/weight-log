@@ -102,6 +102,38 @@ select:focus,input:focus,textarea:focus{outline:2px solid var(--navy);outline-of
 .setRow.done{background:#F2F8F4}
 .setRow.done .setNo::after{content:" ✓";color:var(--ok)}
 
+/* ===== Day目的カード ===== */
+.dayGoal{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--crimson);border-radius:var(--radius);padding:13px 15px;margin-bottom:14px}
+.dayGoal .dg-day{font-size:.68rem;font-weight:800;color:var(--crimson);letter-spacing:.12em;margin-bottom:5px}
+.dayGoal .dg-goal{font-weight:800;font-size:1rem;color:var(--ink);line-height:1.4}
+.dayGoal .dg-sub{font-size:.76rem;color:var(--sub);margin-top:4px;line-height:1.6}
+
+/* ===== ウォームアップ(折りたたみ) ===== */
+.wupBox{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:14px;overflow:hidden}
+.wupBox summary{
+  list-style:none;display:flex;align-items:center;gap:8px;cursor:pointer;
+  padding:12px 15px;font-weight:800;font-size:.85rem;color:var(--navy);user-select:none;
+}
+.wupBox summary::-webkit-details-marker{display:none}
+.wupBox summary .count{font-size:.66rem;color:var(--sub);font-weight:700}
+.wupBox summary .tri{margin-left:auto;color:var(--sub);font-size:.7rem;transition:transform .15s}
+.wupBox[open] summary .tri{transform:rotate(180deg)}
+.wupBox[open] summary{border-bottom:1px solid var(--line)}
+.wupItem{display:flex;align-items:baseline;gap:10px;padding:9px 15px;border-top:1px dashed var(--line);font-size:.84rem}
+.wupItem:first-of-type{border-top:none}
+.wupItem .w-name{flex:1;font-weight:600}
+.wupItem .w-reps{font-weight:800;color:var(--navy);white-space:nowrap}
+.wupItem .w-note{display:block;font-size:.68rem;color:var(--warn);margin-top:2px;font-weight:400}
+
+/* ===== 前回記録(種目名直下) ===== */
+.hist{background:#F3F6FA;padding:8px 14px;border-bottom:1px solid var(--line);font-size:.72rem;color:var(--sub);line-height:1.6}
+.hist .h-latest b{color:var(--navy);font-weight:800}
+.hist details{margin-top:2px}
+.hist summary{list-style:none;cursor:pointer;color:var(--crimson-dark);font-weight:700;font-size:.68rem;user-select:none}
+.hist summary::-webkit-details-marker{display:none}
+.hist .h-old{padding:2px 0 0 4px}
+.hist .h-old b{color:var(--navy)}
+
 /* ===== 下部バー ===== */
 #saveBar{
   position:fixed;left:0;right:0;bottom:0;z-index:30;
@@ -174,6 +206,9 @@ select:focus,input:focus,textarea:focus{outline:2px solid var(--navy);outline-of
     <h2>今日の記録</h2>
     <label class="fld" for="selPlayer">選手</label>
     <select id="selPlayer"></select>
+    <div id="playerLock" style="display:none" class="hint">個人用リンクで選手が固定されています。
+      <button type="button" id="unlockPlayer" style="color:var(--crimson);font-weight:700;text-decoration:underline">変更する</button>
+    </div>
     <label class="fld" for="inDate">実施日</label>
     <input type="date" id="inDate">
     <label class="fld">入力者</label>
@@ -305,6 +340,19 @@ function renderHome(){
   if(last) sel.value = last;
   sel.onchange = ()=>localStorage.setItem(LS.PLAYER, sel.value);
 
+  // 個人用リンク(?player=P05)による選手固定
+  const urlP = new URLSearchParams(location.search).get('player');
+  if(urlP && config.players.some(p=>p.player_id===urlP && p.name)){
+    sel.value = urlP;
+    localStorage.setItem(LS.PLAYER, urlP);
+    sel.disabled = true;
+    $('#playerLock').style.display = 'block';
+  }
+  $('#unlockPlayer').onclick = ()=>{
+    sel.disabled = false;
+    $('#playerLock').style.display = 'none';
+  };
+
   // 日付=今日
   $('#inDate').value = new Date().toISOString().slice(0,10);
 
@@ -339,7 +387,7 @@ async function openEntry(day){
   const cacheKey = LS.TARGETS + pid + '|' + day;
   try{
     toast('メニューを取得中…');
-    currentTargets = await gasGet({action:'getTargets', player_id:pid, day_type:day});
+    currentTargets = await gasGet({action:'getTargets', player_id:pid, day_type:day, training_date:$('#inDate').value});
     localStorage.setItem(cacheKey, JSON.stringify(currentTargets));
   }catch(e){
     const cached = localStorage.getItem(cacheKey);
@@ -361,9 +409,32 @@ function renderEntry(){
   currentTargets.sets.forEach(s=>{
     (groups[s.exercise_id] = groups[s.exercise_id] || {name:s.exercise_name, cat:s.category, sets:[]}).sets.push(s);
   });
-  wrap.innerHTML = Object.entries(groups).map(([exId,g])=>`
+  // Day目的カード(最上部)
+  const di = currentTargets.day_info;
+  const goalHtml = di && (di.goal||di.short_goal||di.policy) ? `
+    <div class="dayGoal">
+      <div class="dg-day">${currentTargets.day_type} の目的</div>
+      ${di.goal?`<div class="dg-goal">${di.goal}</div>`:''}
+      <div class="dg-sub">${[di.short_goal, di.policy].filter(Boolean).join('<br>')}</div>
+    </div>` : '';
+
+  // ウォームアップ(折りたたみ可能・既定で開く)
+  const wu = currentTargets.warmup || [];
+  const wupHtml = wu.length ? `
+    <details class="wupBox" open>
+      <summary>ウォーミングアップ <span class="count">${wu.length}種目</span><span class="tri">▼</span></summary>
+      ${wu.map(w=>`
+        <div class="wupItem">
+          <span class="w-name">${w.name}${w.note?`<span class="w-note">※${w.note}</span>`:''}</span>
+          <span class="w-reps">${w.reps||''}</span>
+        </div>`).join('')}
+    </details>` : '';
+
+  const hist = currentTargets.history || {};
+  wrap.innerHTML = goalHtml + wupHtml + Object.entries(groups).map(([exId,g])=>`
     <div class="exBlock">
       <div class="exHead"><span class="name">${g.name}</span><span class="cat">${g.cat||''}</span></div>
+      ${histHtml(hist[exId])}
       ${g.sets.map(s=>setRowHtml(exId, s)).join('')}
     </div>`).join('');
 
@@ -394,6 +465,68 @@ function renderEntry(){
       b.classList.add('sel');
     });
   });
+
+  // 入力済みセットの反映(サーバの当日ログ + 端末の送信記録)
+  applyEntered();
+}
+
+/* ===== 入力済み管理 ===== */
+function sentKey(pid, day, date){ return 'wl_sent_' + pid + '|' + day + '|' + date; }
+
+function enteredMap(){
+  const map = {};
+  (currentTargets.entered || []).forEach(e=>{
+    map[e.exercise_id + '|' + e.set_number] = { w:e.actual_weight_kg, r:e.actual_reps, rpe:e.rpe };
+  });
+  const local = JSON.parse(localStorage.getItem(
+    sentKey($('#selPlayer').value, currentDay, $('#inDate').value)) || '{}');
+  Object.assign(map, local);
+  return map;
+}
+
+function applyEntered(){
+  const em = enteredMap();
+  document.querySelectorAll('.setRow').forEach(row=>{
+    const key = row.dataset.ex + '|' + Number(row.dataset.set);
+    const e = em[key];
+    if(!e) return;
+    const uid = `s_${row.dataset.ex}_${row.dataset.set}`;
+    const wi = document.getElementById(uid+'_w');
+    const ri = document.getElementById(uid+'_r');
+    if(e.w !== null && e.w !== undefined && e.w !== ''){ wi.value = e.w; wi.dispatchEvent(new Event('input')); }
+    if(e.r !== null && e.r !== undefined && e.r !== ''){ ri.value = e.r; ri.dispatchEvent(new Event('input')); }
+    if(e.rpe){
+      const b = row.querySelector(`.rpe[data-v="${e.rpe}"]`);
+      if(b){ row.querySelectorAll('.rpe').forEach(x=>x.classList.remove('sel')); b.classList.add('sel'); }
+    }
+    row.classList.add('done');
+    // 変更検知用に保存時点の値を控える
+    row.dataset.prev = JSON.stringify({
+      w:String(e.w ?? ''), r:String(e.r ?? ''), rpe:String(e.rpe ?? '')
+    });
+  });
+}
+
+/* 3日より前の送信記録をlocalStorageから掃除 */
+function pruneSent(){
+  const limit = Date.now() - 3*24*60*60*1000;
+  Object.keys(localStorage).filter(k=>k.startsWith('wl_sent_')).forEach(k=>{
+    const date = k.split('|').pop();
+    if(new Date(date).getTime() < limit) localStorage.removeItem(k);
+  });
+}
+
+/* 種目名直下の前回記録(小さく表示・タップで過去3回分) */
+function histHtml(h){
+  if(!h || !h.length) return '';
+  const latest = `<div class="h-latest">前回 <b>${h[0].date}</b>: ${h[0].summary}</div>`;
+  const older = h.slice(1);
+  const more = older.length ? `
+    <details>
+      <summary>過去の記録を見る（${older.length}回分）</summary>
+      ${older.map(o=>`<div class="h-old"><b>${o.date}</b>: ${o.summary}</div>`).join('')}
+    </details>` : '';
+  return `<div class="hist">${latest}${more}</div>`;
 }
 
 function setRowHtml(exId, s){
@@ -405,7 +538,7 @@ function setRowHtml(exId, s){
   return `
   <div class="setRow" data-ex="${exId}" data-set="${s.set_number}">
     <div class="setTop">
-      <span class="setNo">SET ${s.set_number}</span>
+      <span class="setNo">${Number(s.set_number)===0?'WUP':`SET ${s.set_number}`}</span>
       ${chip}
       ${s.note?`<span class="setNote">${s.note}</span>`:''}
     </div>
@@ -441,15 +574,25 @@ $('#saveBtn').addEventListener('click', ()=>{
   const proxy = !isSelf();
   const by = proxy ? ($('#inProxyName').value.trim()||'トレーナー') : '本人';
 
-  const records = [];
+  const news = [];  // 新規セット
+  const dups = [];  // 記録済みだが値が変更されたセット
+  const doneRows = [];
   document.querySelectorAll('.setRow').forEach(row=>{
     const exId = row.dataset.ex, setN = Number(row.dataset.set);
-    const uid = `s_${exId}_${setN}`;
+    const uid = `s_${exId}_${row.dataset.set}`;
     const w = document.getElementById(uid+'_w').value;
     const r = document.getElementById(uid+'_r').value;
     const rpeBtn = row.querySelector('.rpe.sel');
     if(w==='' && r==='') return;  // 未入力セットはスキップ
-    records.push({
+
+    // 入力済みセットで値が変わっていなければ送信対象外(再送信を自動防止)
+    if(row.dataset.prev){
+      const prev = JSON.parse(row.dataset.prev);
+      const cur = { w:String(w), r:String(r), rpe:String(rpeBtn?rpeBtn.dataset.v:'') };
+      if(prev.w===cur.w && prev.r===cur.r && prev.rpe===cur.rpe) return;
+    }
+
+    const rec = {
       training_date: date, player_id: pid, day_type: currentDay,
       exercise_id: exId, set_number: setN,
       actual_weight_kg: w===''?null:Number(w),
@@ -457,11 +600,38 @@ $('#saveBtn').addEventListener('click', ()=>{
       rpe: rpeBtn?Number(rpeBtn.dataset.v):null,
       note: note, input_by: by,
       input_role: proxy?'トレーナー代理':'選手本人',
-    });
-    row.classList.add('done');
+    };
+    (row.dataset.prev ? dups : news).push(rec);
+    doneRows.push(row);
   });
 
-  if(!records.length){ toast('入力されたセットがありません', true); return; }
+  let records = news.concat(dups);
+  if(!records.length){
+    toast('新しい入力がありません（本日分は記録済みです）', true);
+    return;
+  }
+  if(dups.length){
+    const ok = confirm(
+      dups.length + 'セットは本日すでに記録済みで、値が変更されています。\n' +
+      'OK: 変更分も追加記録として送信する（過去の記録も残ります）\n' +
+      'キャンセル: 新規セットのみ送信する');
+    if(!ok){
+      records = news;
+      if(!records.length){ toast('送信対象がありません', true); return; }
+    }
+  }
+
+  // 送信記録を端末に残す(次回開いたとき入力済み表示に使う)
+  const sk = sentKey(pid, currentDay, date);
+  const store = JSON.parse(localStorage.getItem(sk)||'{}');
+  records.forEach(rec=>{
+    store[rec.exercise_id + '|' + rec.set_number] = {
+      w: rec.actual_weight_kg ?? '', r: rec.actual_reps ?? '', rpe: rec.rpe ?? ''
+    };
+  });
+  localStorage.setItem(sk, JSON.stringify(store));
+  doneRows.forEach(row=>row.classList.add('done'));
+
   enqueue(records);
   toast(`${records.length}セットを保存しました`);
   show('scr-home');
@@ -534,7 +704,13 @@ function toast(msg, err){
 }
 
 updateNet();
+pruneSent();
 boot();
+
+// Service Worker登録(完全オフライン起動用。sw.jsを同階層に配置)
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('./sw.js').catch(()=>{});
+}
 </script>
 </body>
 </html>

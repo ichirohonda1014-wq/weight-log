@@ -1,0 +1,117 @@
+!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>個人用QRコード一覧 | KEIO BASKETBALL</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+:root{ --crimson:#A50000; --navy:#1A3A5C; --line:#E2E7EE; --sub:#6B7686; }
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"Yu Gothic","Hiragino Kaku Gothic ProN",system-ui,sans-serif;background:#F4F6F9;color:#1B2430;padding:20px}
+h1{font-size:1.1rem;color:var(--crimson);margin-bottom:4px}
+.sub{font-size:.78rem;color:var(--sub);margin-bottom:16px}
+.panel{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;max-width:640px;margin-bottom:18px}
+label{display:block;font-size:.72rem;font-weight:700;color:var(--sub);margin:10px 0 4px}
+input{width:100%;padding:10px;border:1.5px solid var(--line);border-radius:8px;font-size:.9rem}
+.btn{background:var(--navy);color:#fff;font-weight:800;padding:12px 22px;border:none;border-radius:10px;cursor:pointer;margin-top:14px;font-size:.9rem}
+.btn.red{background:var(--crimson);margin-left:8px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+.qcard{
+  background:#fff;border:1.5px solid var(--navy);border-radius:12px;padding:16px;
+  text-align:center;break-inside:avoid;page-break-inside:avoid;
+}
+.qcard .nm{font-weight:800;font-size:1.05rem;color:var(--navy);margin-bottom:2px}
+.qcard .pid{font-size:.68rem;color:var(--crimson);font-weight:700;letter-spacing:.1em;margin-bottom:10px}
+.qcard .qr{display:flex;justify-content:center;margin-bottom:8px}
+.qcard .url{font-size:.56rem;color:var(--sub);word-break:break-all}
+.hint{font-size:.7rem;color:var(--sub);line-height:1.7;margin-top:8px}
+@media print{
+  body{background:#fff;padding:0}
+  .panel,.noPrint{display:none}
+  .grid{grid-template-columns:repeat(3,1fr);gap:8mm}
+}
+</style>
+</head>
+<body>
+
+<h1>個人用QRコード一覧</h1>
+<p class="sub">選手に配布するQRコードを生成します。読み取ると選手選択が固定された状態でアプリが開きます。</p>
+
+<div class="panel noPrint">
+  <label for="appUrl">アプリのURL（このページと同じサイトに置いた場合は自動入力されます）</label>
+  <input type="url" id="appUrl" placeholder="https://xxxx.github.io/weight-log/">
+  <div id="manualFetch" style="display:none">
+    <label for="gasUrl">GAS ウェブアプリURL（選手リスト取得用）</label>
+    <input type="url" id="gasUrl" placeholder="https://script.google.com/macros/s/…/exec">
+    <label for="gasToken">合言葉トークン（設定している場合）</label>
+    <input type="password" id="gasToken">
+  </div>
+  <button class="btn" id="genBtn">QRコードを生成</button>
+  <button class="btn red noPrint" id="printBtn" style="display:none" onclick="window.print()">印刷する</button>
+  <p class="hint">印刷はA4推奨（3列で並びます）。1枚ずつ切り分けて配布するか、部室に一覧で掲示してください。</p>
+</div>
+
+<div class="grid" id="grid"></div>
+
+<script>
+const $ = (s)=>document.querySelector(s);
+
+// index.htmlと同じサイトに置かれていれば、接続設定と選手リストを共有できる
+const savedConfig = localStorage.getItem('wl_config');
+const savedApi = localStorage.getItem('wl_api_url') || '';
+const savedToken = localStorage.getItem('wl_token') || '';
+
+// アプリURLの自動推定(qr.htmlと同階層のindex.html)
+$('#appUrl').value = location.origin !== 'null'
+  ? location.href.replace(/qr\.html.*$/, '') : '';
+
+if(!savedConfig){
+  $('#manualFetch').style.display = 'block';
+  $('#gasUrl').value = savedApi;
+}
+
+$('#genBtn').addEventListener('click', async ()=>{
+  const appUrl = $('#appUrl').value.trim().replace(/\/?$/,'/');
+  if(!appUrl){ alert('アプリのURLを入力してください'); return; }
+
+  let players;
+  if(savedConfig){
+    players = JSON.parse(savedConfig).players;
+  }else{
+    const gas = $('#gasUrl').value.trim();
+    if(!gas){ alert('GASのURLを入力してください'); return; }
+    try{
+      const u = new URL(gas);
+      u.searchParams.set('action','getConfig');
+      const tk = $('#gasToken').value.trim();
+      if(tk) u.searchParams.set('token', tk);
+      const j = await (await fetch(u)).json();
+      if(!j.ok) throw new Error(j.error);
+      players = j.data.players;
+    }catch(e){ alert('選手リストを取得できません: '+e.message); return; }
+  }
+
+  const grid = $('#grid');
+  grid.innerHTML = '';
+  players.filter(p=>p.name).forEach(p=>{
+    const link = appUrl + '?player=' + encodeURIComponent(p.player_id);
+    const card = document.createElement('div');
+    card.className = 'qcard';
+    card.innerHTML = `
+      <div class="nm">${p.name}</div>
+      <div class="pid">${p.player_id}</div>
+      <div class="qr"></div>
+      <div class="url">${link}</div>`;
+    grid.appendChild(card);
+    new QRCode(card.querySelector('.qr'), {
+      text: link, width: 150, height: 150,
+      colorDark: '#1A3A5C', colorLight: '#FFFFFF',
+    });
+  });
+  $('#printBtn').style.display = grid.children.length ? 'inline-block' : 'none';
+  if(!grid.children.length) alert('氏名が登録された選手がいません。選手マスタを確認してください。');
+});
+</script>
+</body>
+</html>
